@@ -27,8 +27,7 @@
 // --- Library Includes ---
 #include <ESP8266WiFi.h>
 #include <Firebase_ESP_Client.h>
-#include <dht11.h> // Using the dht11 library by Dhruba Saha
-
+#include "DHT.h"
 // Provide the token generation process info.
 #include "addons/TokenHelper.h"
 
@@ -36,18 +35,20 @@
 // IMPORTANT: Replace with your Firebase Project API Key, Database URL, and User Credentials.
 #define WIFI_SSID "FTTH-bsnl"
 #define WIFI_PASSWORD "adavichira@1"
-#define API_KEY "AIzaSyCdQfrxQojddcJtMMkFGePzlbQjBlsL7AY"
-#define DATABASE_URL "kapithan-ff7c3-default-rtdb.firebaseio.com"
+#define API_KEY "AIzaSyCwbAvPWJA9iPpJXFyb5osGHD001lT2ve0"
+#define DATABASE_URL "resqtech-929a9-default-rtdb.firebaseio.com"
 #define USER_EMAIL "andrewjos2004@gmail.com"
 #define USER_PASSWORD "andrew@1"
 
 // --- Sensor Pin Definitions ---
-#define DHT_PIN D4       // Digital pin connected to the DHT sensor
-#define FLAME_PIN D5     // Digital pin connected to the flame sensor's DO
-#define GAS_SENSOR_PIN A0 // Analog pin connected to the gas sensor's A0
+#define DHTPIN D4           // Digital pin connected to the DHT sensor
+#define FLAME_PIN D5       // Digital pin connected to the flame sensor's DO
+#define GAS_SENSOR_PIN A0  // Analog pin connected to the gas sensor's A0
+
+#define DHTTYPE DHT11
 
 // --- Global Object Declarations ---
-dht11 DHT11; // Create a dht11 object
+DHT dht(DHTPIN, DHTTYPE);
 
 // Define Firebase objects
 FirebaseData fbdo;
@@ -65,7 +66,7 @@ void setup() {
   // The dht11 library does not require a setup() call.
 
   // Set sensor pin modes
-  pinMode(FLAME_PIN, INPUT); // Flame sensor will provide an input signal
+  pinMode(FLAME_PIN, INPUT);  // Flame sensor will provide an input signal
 
   // --- WiFi Connection ---
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -90,56 +91,35 @@ void setup() {
   config.database_url = DATABASE_URL;
 
   // Assign the callback function for the long running token generation task
-  config.token_status_callback = tokenStatusCallback; //see addons/TokenHelper.h
+  config.token_status_callback = tokenStatusCallback;  //see addons/TokenHelper.h
 
   // Initialize Firebase with the config and auth objects
   Firebase.begin(&config, &auth);
   Firebase.reconnectWiFi(true);
+  dht.begin();
 }
 
 void loop() {
   // --- Check Firebase Authentication and Readiness ---
   if (Firebase.ready() && !firebase_auth_ok) {
-      // This block runs once after Firebase is initialized and authenticated.
-      firebase_auth_ok = true;
-      Serial.println("Firebase is ready and authenticated.");
+    // This block runs once after Firebase is initialized and authenticated.
+    firebase_auth_ok = true;
+    Serial.println("Firebase is ready and authenticated.");
   }
-  
+
   // Don't proceed if Firebase is not ready
   if (!firebase_auth_ok) {
-      Serial.println("Waiting for Firebase authentication...");
-      delay(2000);
-      return;
-  }
-
-  // --- Read Sensor Data ---
-  
-  // Read from the DHT11 sensor
-  Serial.println("Reading from DHT11 sensor...");
-  int chk = DHT11.read(DHT_PIN);
-
-  // --- Data Validation ---
-  // Check the status of the sensor reading
-  if (chk != DHTLIB_OK) {
-    Serial.print("DHT11 read error: ");
-    switch (chk) {
-      case DHTLIB_ERROR_CHECKSUM: 
-        Serial.println("Checksum error"); 
-        break;
-      case DHTLIB_ERROR_TIMEOUT: 
-        Serial.println("Time out error"); 
-        break;
-      default: 
-        Serial.println("Unknown error"); 
-        break;
-    }
-    delay(2000); // Wait 2 seconds before trying again
+    Serial.println("Waiting for Firebase authentication...");
+    delay(2000);
     return;
   }
 
-  // If we are here, the read was successful
-  float humidity = (float)DHT11.humidity;
-  float temperature = (float)DHT11.temperature;
+  // --- Read Sensor Data ---
+
+  float humidity = dht.readHumidity();
+  // Read temperature as Celsius (the default)
+  float temperature = dht.readTemperature();
+
 
   // Read Flame Sensor (Digital Output)
   int flame_detected = !digitalRead(FLAME_PIN);
